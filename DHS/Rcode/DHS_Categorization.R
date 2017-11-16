@@ -1,5 +1,5 @@
 ## R scripts to harmonise family planning variable and estimate family planning indicators by marital status and age from DHS micro-data files
-# 1. 'DHS_Translate.R' Translates relevant variables across surveys and stores harmonised variable names and codes as R data sets
+# 1. 'DHS_Translate.R' Translates relevant variables across surveys and stores harmonised variable names and codes as R data sets. Based on IPUMS-DHS (https://www.idhsdata.org/idhs/).
 # 2. 'DHS_Categorization.R' Computes marital status and contraceptive use variables
 # 3. 'DHS_GenerateUnmet.R' Computes unmet need variable based on DHS code [http://dhsprogram.com/topics/unmet-need.cfm]
 # 4. 'DHS_output_FP-Indicators.R' Outputs table of family planning indicators by marital status and age
