@@ -49,14 +49,20 @@ dhs.list <- subset(dhs.list, !is.na(Survey.code) & !is.na(Individual.Recode) &
 # Exclude Brazil 1991 as not nationally representative
 dhs.list <- subset(dhs.list, !Survey.code %in% c("br21"))
 
-# Only DHS that are in translation table
-dhs.list <- subset(dhs.list, Individual.Recode %in% names(transTable))
-#=========================================================================================================================================
 #Directory where the translated files are stored
-TranslatedPath <- "/Translated_RDataFiles"
-Translated <- file_path_sans_ext(dir("./Translated_RDataFiles",pattern = ".RData$"))
+TranslatedPath <- "/Translated_RDataFiles/"
+Translated <- file_path_sans_ext(dir("./Translated_RDataFiles/",pattern = ".RData$"))
 #List of surveys that are in master file, not in translated directory
 Untranslated <- subset(dhs.list, subset=!dhs.list[,"Survey.code"]%in%Translated)
+
+# Only DHS that are in translation table
+#dhs.list <- subset(dhs.list, Individual.Recode %in% names(transTable))
+
+# Variables needed for calcuation of contraceptive prevalence and unmet need (To speed up working with RData files)
+VarToKeep<-c("v000", "v020", "v007", "v502", "v605", "v312", "v215", "v213", "m6.1", "v225", "v527", "v528", "v005", "v013", "b3_01",
+             "v536", "v512", "v302", "v375a", "v376", "s607d", "s607c", "v3a08d", "v602", "v001", "v002", "v222", "m10_1", "v008")
+
+#==========================================================================================================================================
 
 ContraceptiveVar <- function(ir.data){
   
@@ -74,6 +80,7 @@ ContraceptiveVar <- function(ir.data){
   original <- as.numeric(gsub("=.*$", "", transTable[ , dosurvey$Individual.Recode]))
   harmony <- transTable[ ,"harmonised"]
   harmonised_LAB <- as.character(transTable[ , "label"])
+  harmonised_LAB <- sub("^\\s+", "",harmonised_LAB) #Trim off trailing spaces for subcategories of methods in translation table
   
   ir.data$methodSpecific <- mapvalues(ir.data$v312, from = original, to = harmony)
   ir.data$methodSpecific[which(is.na(ir.data$v312))] <- NA
@@ -90,6 +97,7 @@ ContraceptiveVar <- function(ir.data){
   
   return (ir.data)
 }
+
 if(nrow(Untranslated) > 0){
   for (i in 1:nrow(Untranslated)){
     
@@ -101,6 +109,9 @@ if(nrow(Untranslated) > 0){
     ir.data <- read.dta (paste(dhs.dir,"/", toupper(dosurvey$Individual.Recode), "FL.dta", sep=""),
                          convert.factors = F, convert.underscore = T)
     
+    #Only keep variables needed
+    ir.data<-ir.data[,names(ir.data)%in%VarToKeep]
+    
     ir.data <- ContraceptiveVar(ir.data)
     
     #Recode weighting variable
@@ -108,6 +119,10 @@ if(nrow(Untranslated) > 0){
     
     save(ir.data, file = paste0("Translated_RDataFiles/",SurveyID,".RData"))
   }
+  
 }else{
-    print("All surveys are translated")
+  print("All surveys are translated")
+  
 }
+
+

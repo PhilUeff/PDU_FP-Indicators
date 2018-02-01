@@ -27,6 +27,7 @@ translatedPath <- ("V:/FertilitySection/Alkema_Joint project on contraceptive us
 library(foreign) #Read in spss
 library(plyr) #Mapvalues
 library(tools)
+library(haven)
 
 ######################################################################################################################
 ##########################   LOAD INVENTORY LIST OF MICS SURVEYS  																          		  
@@ -38,6 +39,9 @@ mics.main.list <- read.csv("V:\\MICS\\MICSMaster.csv", header=TRUE, stringsAsFac
 # subset the inventory list to keep only the information for the survey(s) you want to run
 mics.list <- subset(mics.main.list, Phase=="MICS2" | Phase=="MICS3" | Phase=="MICS4" | Phase=="MICS5") 
 mics.list <- subset(x=mics.list, subset = !is.na(Individual.Recode))
+
+# exclude problematic surveys
+mics.list <- subset(x=mics.list, subset = !Individual.Recode%in%c("bswm2"))
 
 
 ######################################################################################################################
@@ -55,7 +59,7 @@ nameInventory <- read.csv("tt_variableNames.csv", stringsAsFactors = F, header =
 ##	Function to calculate the desired data 
 Translation <- function(surveyID,surveyInfo){
   # Load dataset
-  dat <- read.spss(paste(mics.dir, surveyInfo$Individual.Recode, ".sav", sep = ""), to.data.frame = F, use.value.labels = F)
+  dat <- read_spss(paste(mics.dir, surveyInfo$Individual.Recode, ".sav", sep = ""))
   df <- as.data.frame(dat, stringsAsFactors = TRUE)
   dat_varLabs <- attr(dat, "variable.labels")
   dat_valLabs <- attr(dat, "label.table")
@@ -74,9 +78,9 @@ Translation <- function(surveyID,surveyInfo){
     print(varNew)
     varOriginal <- tolower(nameInventory[nameInventory$Name == varNew, surveyID])
   
-    if(varOriginal == "cm11x$"){
-      varOriginal <- "cm11x."
-    }
+#    if(varOriginal == "cm11x$"){
+#      varOriginal <- "cm11x."
+#    }
     
     if (varOriginal != "" & !is.na(varOriginal)) {    # Only run if the variable is present in the dataset (if cell in translation table is not "" )
       transTable <- read.csv(paste0("tt_", tolower(varNew), ".csv"), header = TRUE)
@@ -125,7 +129,7 @@ Translated.list <- dir(translatedPath,pattern=".RData$")
 Translated.list<-file_path_sans_ext(Translated.list)
 
 #Subset all surveys code from Translted survey code = retain untranslated surveys 
-UnTranslated <-  subset(mics.list, !Individual.Recode %in% Translated.list)
+UnTranslated <- subset(mics.list, !Individual.Recode %in% Translated.list)
 
 if(nrow(UnTranslated)>0){
   for(i in 1:nrow(UnTranslated)){

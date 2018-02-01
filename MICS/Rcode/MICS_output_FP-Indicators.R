@@ -13,7 +13,7 @@
 
 ##Calculate Unmet need and CP estimates by marital status and 5-year age group
 
-setwd("V:/FertilitySection/Alkema_Joint project on contraceptive use trends/1_All-women-estimates&projections/Data-tabulations/MICS")
+setwd("V:/FertilitySection/Alkema_Joint project on contraceptive use trends/1_All-women-estimates&projections/Data-tabulations/MICS/")
 #Translate any new surveys
 source("./RCode/MICS_Translate.R")
 #############LIBRARIES##############
@@ -138,7 +138,7 @@ CrossTab <- function(VarWeight,VarMarital, VarMethod,df,Formula,VarList){
 }
 ##Generate output table
 CP_OUTPUT <- function(df,choice,VarMethods){
-  cpVarList <- c("Using_modern","Using_traditional","Not_using")
+  cpVarList <- c("Using_modern","Using_traditional","Not_using","Using_any_nomethod")
   umnVarList <- c("No_Unmet_Need","Unmet_Need","MissingData")
   if(choice == "Both"){
     if(!"AGE5YEAR_LAB"%in%names(df)){
@@ -158,9 +158,9 @@ CP_OUTPUT <- function(df,choice,VarMethods){
     #Set ever married sample to NA for formerly,never and unmarried 
     final <- ResetRecords(final)
     
-    tTYPE <- select(final, country:year,Universe, MSTAT_LAB, AGE5YEAR_LAB, 
+    tTYPE <- select(final, country:Endyear,Universe, MSTAT_LAB, AGE5YEAR_LAB, 
                     Not_using, Using_any, Using_modern, Using_traditional, Unmet_Need, 
-                    cpModern:demandSatisfied_modern, survey:surveyShort,n_unweighted,nAny_unweighted)
+                    cpModern:`Demand satisfied by modern`, survey:surveyShort,n_unweighted,nAny_unweighted)
     return(tTYPE)
     
   }else{
@@ -225,39 +225,41 @@ CP_OUTPUT <- function(df,choice,VarMethods){
                cpModern = indicator,
                cpTraditional = indicator,
                cpAny = (Using_any) / (Not_using + Using_any) * 100,
-               unmet = (Unmet_Need) / (Unmet_Need + No_Unmet_Need)*100,
-               demandSatisfied_modern = NA,
+               Unmet = (Unmet_Need) / (Unmet_Need + No_Unmet_Need)*100,
+               `Demand satisfied by modern` = NA,
                country = surveyInfo$CountryName.UN,
                iso = surveyInfo$LocID,
                catalogID = surveyInfo$CatalogID,
-               year = surveyInfo$StartYear,
+               Startyear = surveyInfo$StartYear,
+               Endyear = surveyInfo$EndYear,
                survey = surveyInfo$SurveyName,
                surveyShort = surveyInfo$ShortName,
                Universe = surveyInfo$Sample.Type.Female
                )
     }else{
       final <- final %>%
-        mutate(Using_any = Using_modern + Using_traditional,
-               cpModern = Using_modern / (Not_using + Using_modern + Using_traditional)*100,
-               cpTraditional = Using_traditional / (Not_using + Using_modern + Using_traditional) *100,
-               cpAny = (Using_modern + Using_traditional) / (Not_using + Using_modern + Using_traditional) *100,
-               unmet = Unmet_Need/(Unmet_Need + No_Unmet_Need)*100,
-               demandSatisfied_modern = ifelse(!is.na(unmet),((Using_modern)/(Using_modern+Using_traditional+Unmet_Need)) *100,NA),
+        mutate(Using_any = Using_modern + Using_traditional + Using_any_nomethod,
+               cpModern = Using_modern / (Not_using + Using_modern + Using_traditional + Using_any_nomethod)*100,
+               cpTraditional = Using_traditional / (Not_using + Using_modern + Using_traditional + Using_any_nomethod) *100,
+               cpAny = (Using_modern + Using_traditional) / (Not_using + Using_modern + Using_traditional + Using_any_nomethod) *100,
+               Unmet = Unmet_Need/(Unmet_Need + No_Unmet_Need)*100,
+               `Demand satisfied by modern` = ifelse(!is.na(Unmet),((Using_modern)/(Using_any_nomethod+Using_modern+Using_traditional+Unmet_Need)) *100,NA),
                country = surveyInfo$CountryName.UN,
                iso = surveyInfo$LocID,
                catalogID = surveyInfo$CatalogID,
-               year = surveyInfo$StartYear,
+               Startyear = surveyInfo$StartYear,
+               Endyear = surveyInfo$EndYear,
                survey = surveyInfo$SurveyName,
                surveyShort = surveyInfo$ShortName,
                Universe = surveyInfo$Sample.Type.Female
-               )
+        )
     }
     
     #Only include Married when survey's Universe is Ever Married
     if(final$Universe == "Ever married" && !"Never married"%in%df$MSTATNF_LAB){
       final <- subset(final,subset=final$MSTAT_LAB!="Unmarried/Not-in-union")
     }
-    tTYPE <- select(final, country:year,Universe, MSTAT_LAB, AGE5YEAR_LAB, n_unweighted, nAny_unweighted, Not_using, Using_any, Using_modern, Using_traditional,Unmet_Need, cpModern:demandSatisfied_modern, survey:surveyShort)
+    tTYPE <- select(final, country:Endyear,Universe, MSTAT_LAB, AGE5YEAR_LAB, n_unweighted, nAny_unweighted, Not_using, Using_any, Using_modern, Using_traditional,Unmet_Need, cpModern:`Demand satisfied by modern`, survey:surveyShort)
   }
   return (final)
 }
@@ -285,11 +287,25 @@ CP_METH <- function (df,choice){
         cpMethAll <- as.data.frame(xtabs(wmweight ~ MSTAT_LAB + FPMETHOD_LAB, df)) %>%
           mutate(AGE5YEAR_LAB = "[Total]")
         cpMethAge <- as.data.frame(xtabs(wmweight ~ MSTAT_LAB + FPMETHOD_LAB + AGE5YEAR_LAB, df))
+        
+        if("Specific_unmet"%in%names(df)){
+          umnAll <- as.data.frame(xtabs(wmweight~MSTAT_LAB + Specific_unmet, df))%>%
+            mutate(AGE5YEAR_LAB = "[Total]")
+          
+          umnAge <- as.data.frame(xtabs(wmweight~MSTAT_LAB + Specific_unmet + AGE5YEAR_LAB,df)) 
+        }
       }else{
         cpMethAll <- as.data.frame(addmargins(xtabs(wmweight ~ MSTAT_LAB + FPMETHOD_LAB, df), 1, FUN = AllWomen)) %>%
           mutate(AGE5YEAR_LAB = "[Total]")
         
         cpMethAge <- as.data.frame(addmargins(xtabs(wmweight ~ MSTAT_LAB + FPMETHOD_LAB + AGE5YEAR_LAB, df), 1, FUN = AllWomen))
+        
+        if("Specific_unmet"%in%names(df)){
+          umnAll <- as.data.frame(addmargins(xtabs(wmweight~MSTAT_LAB + Specific_unmet, df),1,FUN=AllWomen))%>%
+            mutate(AGE5YEAR_LAB = "[Total]")
+          
+          umnAge <- as.data.frame(addmargins(xtabs(wmweight~MSTAT_LAB + Specific_unmet + AGE5YEAR_LAB,df),1,FUN=AllWomen) )
+        }
       }
     }else if(choice == "Unmarried"){
       if(all(is.na(df$MSTATNF_LAB))==F){
@@ -297,12 +313,26 @@ CP_METH <- function (df,choice){
           mutate(AGE5YEAR_LAB = "[Total]")
         
         cpMethAge <- as.data.frame(xtabs(wmweight ~ MSTATNF_LAB + FPMETHOD_LAB + AGE5YEAR_LAB, df))
+        
+        if("Specific_unmet"%in%names(df)){
+          umnAll <- as.data.frame(xtabs(wmweight~MSTATNF_LAB + Specific_unmet, df))%>%
+            mutate(AGE5YEAR_LAB = "[Total]")
+          
+          umnAge <- as.data.frame(xtabs(wmweight~MSTATNF_LAB + Specific_unmet + AGE5YEAR_LAB,df)) 
+        }
+        
       }else{
         return (NULL)
       }
     }
     
     cpMeth <- full_join(cpMethAge, cpMethAll)
+    
+    if(exists("umnAll")){
+      umn <- full_join(umnAll,umnAge)
+      names(umn)[which(names(umn)=="Specific_unmet")] <- "FPMETHOD_LAB"
+      cpMeth <- full_join(cpMeth,umn)
+    }
     
     if("MSTATNF_LAB"%in%colnames(cpMeth)){
       colnames(cpMeth)[colnames(cpMeth)=="MSTATNF_LAB"]<-"MSTAT_LAB"
@@ -312,7 +342,8 @@ CP_METH <- function (df,choice){
       mutate(country = surveyInfo$CountryName.UN,
              iso = surveyInfo$LocID,
              catalogID = surveyInfo$CatalogID,
-             year = surveyInfo$StartYear,
+             Startyear = surveyInfo$StartYear,
+             Endyear = surveyInfo$EndYear,
              survey = surveyInfo$SurveyName,
              surveyShort = surveyInfo$ShortName
       )
@@ -337,12 +368,12 @@ ResetRecords<- function(final){
               final$cpAny[which(final$MSTAT_LAB == mstat.list[m] | final$MSTAT_LAB == "AllWomen"| final$MSTAT_LAB == "Unmarried/Not-in-union")] <- NA
               final$cpModern[which(final$MSTAT_LAB == mstat.list[m] | final$MSTAT_LAB == "AllWomen"| final$MSTAT_LAB == "Unmarried/Not-in-union")] <- NA
               final$cpTraditional[which(final$MSTAT_LAB == mstat.list[m] | final$MSTAT_LAB == "AllWomen"| final$MSTAT_LAB == "Unmarried/Not-in-union")] <- NA
-              final$demandSatisfied_modern[which(final$MSTAT_LAB == mstat.list[m] | final$MSTAT_LAB == "AllWomen"| final$MSTAT_LAB == "Unmarried/Not-in-union")] <- NA
-              final$unmet[which(final$MSTAT_LAB == mstat.list[m] | final$MSTAT_LAB == "AllWomen"| final$MSTAT_LAB == "Unmarried/Not-in-union")] <- NA
+              final$`Demand satisfied by modern`[which(final$MSTAT_LAB == mstat.list[m] | final$MSTAT_LAB == "AllWomen"| final$MSTAT_LAB == "Unmarried/Not-in-union")] <- NA
+              final$Unmet[which(final$MSTAT_LAB == mstat.list[m] | final$MSTAT_LAB == "AllWomen"| final$MSTAT_LAB == "Unmarried/Not-in-union")] <- NA
             }
           }
           if(all(df$UnmetSim[which(df$MARSTAT_LAB==mstatus.list[m])]  == "MissingData")){
-            final$unmet[which(final$MSTAT_LAB == mstat.list[m] | final$MSTAT_LAB == "AllWomen"| final$MSTAT_LAB == "Unmarried/Not-in-union")] <- NA
+            final$Unmet[which(final$MSTAT_LAB == mstat.list[m] | final$MSTAT_LAB == "AllWomen"| final$MSTAT_LAB == "Unmarried/Not-in-union")] <- NA
           }
         }
 
@@ -352,16 +383,16 @@ ResetRecords<- function(final){
   
   #Set Unmet and Demand Satisfied of Unmarried and Allwomen when no unmet estimate can be calculated 
   if(all(df$UnmetSim[which(df$MSTAT_LAB=="Unmarried/Not-in-union")] == "MissingData")){
-    final$unmet[which(final$MSTAT_LAB=="Unmarried/Not-in-union")] <- NA
-    final$unmet[which(final$MSTAT_LAB=="AllWomen")] <- NA
-    final$demandSatisfied_modern[which(final$MSTAT_LAB == "Unmarried/Not-in-union")] <- NA
-    final$demandSatisfied_modern[which(final$MSTAT_LAB=="AllWomen")] <- NA
+    final$Unmet[which(final$MSTAT_LAB=="Unmarried/Not-in-union")] <- NA
+    final$Unmet[which(final$MSTAT_LAB=="AllWomen")] <- NA
+    final$`Demand satisfied by modern`[which(final$MSTAT_LAB == "Unmarried/Not-in-union")] <- NA
+    final$`Demand satisfied by modern`[which(final$MSTAT_LAB=="AllWomen")] <- NA
   }
   if(all(df$UnmetSim[which(df$MSTAT_LAB=="Married/In-union")]=="MissingData")){
-    final$unmet[which(final$MSTAT_LAB=="Married/In-union")] <- NA
-    final$unmet[which(final$MSTAT_LAB=="AllWomen")] <- NA
-    final$demandSatisfied_modern[which(final$MSTAT_LAB=="Married/In-union")] <- NA
-    final$demandSatisfied_modern[which(final$MSTAT_LAB=="AllWomen")] <- NA
+    final$Unmet[which(final$MSTAT_LAB=="Married/In-union")] <- NA
+    final$Unmet[which(final$MSTAT_LAB=="AllWomen")] <- NA
+    final$`Demand satisfied by modern`[which(final$MSTAT_LAB=="Married/In-union")] <- NA
+    final$`Demand satisfied by modern`[which(final$MSTAT_LAB=="AllWomen")] <- NA
   }
   
   return (final)
@@ -388,7 +419,7 @@ Output <- function(tTYPE,tMETH){
 TransformFormat <- function(){
   #TRANSFORM TYPE TABLE FROM WIDE FORMAT TO LONG FORMAT AND CALCULATE CP
   long <- read.csv(file = file.list[1]) %>%
-    gather(identifier, prevalence, cpModern:demandSatisfied_modern)  #cp in long format
+    gather(Indicator, prevalence, cpModern:`Demand.satisfied.by.modern`)  #cp in long format
   
   write.csv(long, file.list[2])
   
@@ -396,11 +427,13 @@ TransformFormat <- function(){
   tLong <- read.csv(file = file.list[3])
   
   colList <- c("IMP", "MST", "IUD_IUS", "FST", "INJ", "INJ1", "INJ2", "INJ3", "PILL", "PAT", "RING", "CONM", "DIA", "CONF", "LAM", "EC", "NSP",
-               "FOA", "OTHMOD", "RHY", "WD", "BF", "OTHTRAD", "OTH","FPAny_butNotInFPMETHOD","modernUser", "traditionalUser", "totalUser", "NotUsing")
+               "FOA", "OTHMOD", "RHY", "WD", "BF","SDM","OTHTRAD", "OTH","FPAny_butNotInFPMETHOD","UnmetNeed_for_Limiting","UnmetNeed_for_Spacing",
+               "No_Unmet_Need","modernUser", "traditionalUser", "totalUser", "NotUsing")
+  
   ## Cast into wide format
   tWide <- tLong %>%
     filter(MSTAT_LAB %in% c("Married/In-union", "Unmarried/Not-in-union", "AllWomen", "Formerly in-union", "Neverin-union", "Unmarried")) %>%  #filters out surveys from tLong which did not have method specific variable or other problems
-    dcast(catalogID + iso + survey + surveyShort + country + year + MSTAT_LAB + AGE5YEAR_LAB ~ FPMETHOD_LAB, value.var = "Freq")
+    dcast(catalogID + iso + survey + surveyShort + country + Startyear + Endyear + MSTAT_LAB + AGE5YEAR_LAB ~ FPMETHOD_LAB, value.var = "Freq")
   
   # Assign NA values for methods that were not present in any MICS surveys included in run
   for (j in colList[!colList %in% names(tWide)]) {
@@ -413,13 +446,16 @@ TransformFormat <- function(){
   # Sum individual methods to modern and traditional users
   tWide <- tWide %>%
     mutate(modernUser = rowSums(cbind(IMP, MST, IUD_IUS, FST, INJ, INJ1, INJ2, INJ3, PILL, PAT, RING, CONM, DIA, CONF, LAM, EC, FOA, OTHMOD), na.rm = TRUE), 
-           traditionalUser = rowSums(cbind(RHY, WD, BF, NSP ,OTHTRAD, OTH), na.rm = TRUE), # category FPAny_butNotInFPMETHOD not categorised yet,
+           traditionalUser = rowSums(cbind(RHY, WD, BF, NSP,SDM ,OTHTRAD, OTH), na.rm = TRUE), # category FPAny_butNotInFPMETHOD not categorised yet,
            totalUser = modernUser + traditionalUser,
            totalN = rowSums(cbind(modernUser, traditionalUser, NotUsing, FPAny_butNotInFPMETHOD), na.rm = TRUE))
   
   # Add CP percentages for selection of methods
   for (j in colList) {
     colTitle <- paste("CP", j, sep = "_")
+    if(j %in% c("UnmetNeed_for_Limiting","UnmetNeed_for_Spacing","No_Unmet_Need")){
+      tWide[colTitle] <- tWide[j] / rowSums(tWide[,c("UnmetNeed_for_Limiting","UnmetNeed_for_Spacing","No_Unmet_Need")],na.rm=T) *100
+    }
     tWide[colTitle] <- tWide[j] / rowSums(tWide[, c("modernUser", "traditionalUser", "NotUsing", "FPAny_butNotInFPMETHOD")], na.rm = TRUE) * 100
   }
   
@@ -470,10 +506,10 @@ for(i in 1:length(working.list)){
   #Check for Contraceptive Variable 
   fpVarList<-c("FPNOWUSFST", "FPNOWUSMST", "FPNOWUSIUD", "FPNOWUSIUS", "FPNOWUSINJ", "FPNOWUSIMP", "FPNOWUSPILL", "FPNOWUSCONM", "FPNOWUSCONF",
                "FPNOWUSDIA", "FPNOWUSFOA", "FPNOWUSLAM", "FPNOWUSEC", "FPNOWUSPAT", "FPNOWUSRING", "FPNOWUSRHY", "FPNOWUSWD", "FPNOWUSBF", "FPNOWUSOTH",
-               "FPNOWUSNSP", "FPNOWUSOTHMOD", "FPNOWUSOTHTRAD")
+               "FPNOWUSNSP", "FPNOWUSOTHMOD", "FPNOWUSOTHTRAD","FPNOWUSSDM")
   
   ##FPNOW does not exists and specificMethods missing -> output FP variables Missing
-  if (is.null(df$FPNOW) | all(is.na(df$FPNOW)) & all(!fpVarList %in% names(df))){
+  if ((is.null(df$FPNOW) | all(is.na(df$FPNOW))) & all(!fpVarList %in% names(df))){
     indicator <- "FP variables missing"
     tTYPE <- paste(surveyID, surveyInfo$CountryName.UN, surveyInfo$StartYear, "FP variables missing", sep = "; ")
   }else{
@@ -500,7 +536,7 @@ for(i in 1:length(working.list)){
       cpMeth<-CP_METH(df,choice)
     }
 
-    tTYPE$totalDemand <- tTYPE$cpAny + tTYPE$unmet
+    tTYPE$totalDemand <- rowSums(tTYPE[,c("cpAny","Unmet")],na.rm=T)
     
     #WCUMA_nAny_totalAge_<10 = Indicator of whether sample size of unmarried for 15-49 < 10
     ## Missing FP NOW Variable, WMCUMA indicator remains empty

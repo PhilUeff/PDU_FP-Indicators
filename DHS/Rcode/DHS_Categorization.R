@@ -9,8 +9,6 @@
 # [http://www.un.org/en/development/desa/population/theme/family-planning/index.shtml]
 ## DHS micro data sets need to be downloaded from the DHS program website [https://dhsprogram.com/]
 
-
-
 library(plyr) 
 
 # Compute marital status categories
@@ -28,8 +26,7 @@ Define <- function(ir.data){
   
   #Remove Unmarried categories if formerly-married exists but not never-in-unin
   ir.data$mstatusBinary[which(ir.data$v502!=1 & ir.data$v502!=9)] <-2
-  
-  
+
   ir.data$agegroup <- ir.data$v013
   
   return(ir.data)
@@ -50,12 +47,17 @@ MapVal <- function(ir.data){
                                          "using_for_limiting", "no_unmet_need", "infecund_or_menopausal", "not_sexually_active",
                                          "unmarried_EM_sample_or_no_data", "unmet need missing"))
   
-  ir.data$sexact <- factor(ir.data$sexact, levels = c(1,2,3),
-                           labels = c("Sexually_active", "Sexually_inactive", "Never_had_sex"))
-  
   ir.data$unmettot <- factor(ir.data$unmettot,
                              levels = c(0,1),
                              labels = c("No_unmet_need", "Unmet_need" ))
+  
+  ir.data$specific_unmet <- factor(ir.data$specific_unmet,
+                                   levels = c(0,1,2),
+                                   labels = c("No_Unmet_Need","UnmetNeed_for_Spacing","UnmetNeed_for_Limiting"))
+  
+  #Sexual Activtiy
+  ir.data$sexact <- factor(ir.data$sexact, levels = c(1,2,3),
+                           labels = c("Sexually_active", "Sexually_inactive", "Never_had_sex"))
   
   #Marital Status
   ir.data$mstatus <- factor(ir.data$mstatus, levels = c(0,2,9),
@@ -70,11 +72,10 @@ MapVal <- function(ir.data){
   return (ir.data)
 }
 
-# Compute contraceptive method categories
+# Compute contraceptive method categories - for calculation of standard error
 Categorization_SE <- function(ir.data){
   ir.data<-Define(ir.data)
-  
-   #For SE
+
   ir.data$anymethod <- ifelse(ir.data$method %in% c(1,2), 1, 0) 
   
   ir.data$tradmethod <- ifelse(ir.data$method == 2, 1, 0)

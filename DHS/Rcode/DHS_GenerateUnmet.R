@@ -50,8 +50,17 @@ Unmet <- function(ir.data){
   # Generate Time since Last Birth
   ## b3.01 = Date of last birth (CMC)
   ## v008 = Date of Interview (CMC)
+  ## DHS April Update: tsinceb now calculated using v222 which is based on century day codes in DHS7
   ir.data$tsinceb <- NA
-  ir.data$tsinceb <- ir.data$v008 - ir.data$b3.01
+  ir.data$tsinceb[which(ir.data$v000 < 7)] <- ir.data$v008[which(ir.data$v000 < 7)] - ir.data$b3.01[which(ir.data$v000 < 7)]
+  ir.data$tsinceb[which(ir.data$v000 >= 7)] <- ir.data$v222[which(ir.data$v000 >= 7)]
+  # ir.data <- ir.data %>% mutate(
+  #    tsinceb = ifelse(
+  #     v000>=7,
+  #      v008-b3.01,
+  #      v222
+  #    )
+  #  )
   
   #Generate Time since Last Period in Months
   ir.data$tsincep <- NA
@@ -121,23 +130,23 @@ Unmet <- function(ir.data){
   
   ####special Survey####
   #Sexually Active Defined as 1 month
-  # if(SurveyID=="bf21"){
-  #   ir.data$sexact[which(ir.data$v527>=0 & ir.data$v527<300)]<-1
-  #   ir.data$sexact[which(ir.data$v527 > 300)] <- 2
-  # }else{
-  #   ir.data$sexact[which(ir.data$v528>=0 & ir.data$v528<=30)] <- 1
-  #   if(SurveyID %in% specialSurveys){
-  #     ir.data$sexact[which(is.na(ir.data$sexact) & ir.data$v528==95)] <- 1
-  #   }else{
-  #     ir.data$sexact[which(ir.data$v528 > 30)] <- 2
-  #     ir.data$sexact[which(ir.data$v536 == 0)] <- 3
-  #   }
-  # }
-  # 
+  if(SurveyID=="bf21"){
+    ir.data$sexact[which(ir.data$v527>=0 & ir.data$v527<300)]<-1
+    ir.data$sexact[which(ir.data$v527 > 300)] <- 2
+  }else{
+    ir.data$sexact[which(ir.data$v528>=0 & ir.data$v528<=30)] <- 1
+    if(SurveyID %in% specialSurveys){
+      ir.data$sexact[which(is.na(ir.data$sexact) & ir.data$v528==95)] <- 1
+    }else{
+      ir.data$sexact[which(ir.data$v528 > 30)] <- 2
+      ir.data$sexact[which(ir.data$v536 == 0)] <- 3
+    }
+  }
+
   #Sexually Active Defined as 3months
-  ir.data$sexact[which((ir.data$v527>=0 & ir.data$v527<=190) |
-                         (ir.data$v527>=200 & ir.data$v527<=212)|
-                         (ir.data$v527>=300 & ir.data$v527<=303))] <- 1
+  # ir.data$sexact[which((ir.data$v527>=0 & ir.data$v527<=190) |
+  #                        (ir.data$v527>=200 & ir.data$v527<=212)|
+  #                        (ir.data$v527>=300 & ir.data$v527<=303))] <- 1
 
   #No Unmet need
   ir.data$unmet[which(is.na(ir.data$unmet) & (ir.data$v502 != 1 | is.na(ir.data$v502)) & (ir.data$sexact != 1 | is.na(ir.data$sexact)) )] <- 97
@@ -158,11 +167,17 @@ Unmet <- function(ir.data){
                           (ir.data$tsinceb>59 | is.na(ir.data$tsinceb)) & ir.data$s309b==0 & 
                           (ir.data$pregPPA24!=1 | is.na(ir.data$pregPPA24)) & (ir.data$v007==2009 | ir.data$v007==2010))] <- 1 
   }else {
-    ir.data$infec[which(substr(ir.data$v000,3,3) != "6" & ir.data$v502==1 & ir.data$v512>=5 & !is.na(ir.data$v512) & 
+    # DHS Update April 2017: checks for v000 now look for "7"
+    ir.data$infec[which(!substr(ir.data$v000,3,3) %in% c("6","7") & ir.data$v502==1 & ir.data$v512>=5 & !is.na(ir.data$v512) & 
                           (ir.data$tsinceb>59 | is.na(ir.data$tsinceb)) & ir.data$v302==0 & 
                           (ir.data$pregPPA24!=1 | is.na(ir.data$pregPPA24)))] <- 1
     
-    ir.data$infec[which(substr(ir.data$v000,3,3) == "6" & 
+    # Pakistan round 6 DHS does still have v302 as name and not v302a (Not specified in DHS code because differently coded)
+    if(SurveyID == "pk61") {
+      ir.data$v302a <- ir.data$v302
+    }
+    
+    ir.data$infec[which(substr(ir.data$v000,3,3) %in% c("6","7") & 
                           ir.data$v502 == 1 & ir.data$v512>=5 & !is.na(ir.data$v512) & 
                           (ir.data$tsinceb>59 | is.na(ir.data$tsinceb)) & ir.data$v302a==0 &
                           (ir.data$pregPPA24!=1 | is.na(ir.data$pregPPA24)))] <- 1
@@ -197,7 +212,7 @@ Unmet <- function(ir.data){
     ir.data$infec[which(is.na(ir.data$infec) & ir.data$v375a==23)] <- 1
   }else{
     ##DHS IV+ Surveys
-    ir.data$infec[which(substr(ir.data$v000,3,3) %in% c("4","5","6") & ir.data$v3a08d==1)] <- 1
+    ir.data$infec[which(substr(ir.data$v000,3,3) %in% c("4","5","6","7") & ir.data$v3a08d==1)] <- 1
     
     ##DHS III Surveys
     ir.data$infec[which(substr(ir.data$v000,3,3) %in% c("3","T") & ir.data$v375a==23)]<-1
@@ -247,10 +262,9 @@ Unmet <- function(ir.data){
   }
   # wants in 2+years, wants undecided timing, or unsure if wants
   if(SurveyID == "ls60"){
-    ir.data$unmet[which(is.na(ir.data$v605))] <- 4
-  }else{
-    ir.data$unmet[which(is.na(ir.data$unmet) & ir.data$v605>=2 & ir.data$v605<=4 )] <- 1
+    ir.data$v605[which(is.na(ir.data$v605))] <- 4
   }
+  ir.data$unmet[which(is.na(ir.data$unmet) & ir.data$v605>=2 & ir.data$v605<=4 )] <- 1
   # wants no more
   ir.data$unmet[which(is.na(ir.data$unmet) & ir.data$v605==5)] <-2
   ir.data$unmet[which(is.na(ir.data$unmet))] <-99
@@ -261,9 +275,22 @@ Unmet <- function(ir.data){
   }
   
   #Total Unmet Need
+  ir.data$specific_unmet <- ir.data$unmet
+  ir.data$specific_unmet[which(!ir.data$specific_unmet%in%c(1,2))] <- 0
+  
   ir.data$unmettot <- NA
   ir.data$unmettot[which(ir.data$unmet==1 | ir.data$unmet==2)]<-1
   ir.data$unmettot[which(!ir.data$unmet %in% c(1,2))] <- 0
+  
+  # Kenya 2014 is not included in DHS list of special surveys, but has long and short questionnaire.
+  # Only short questionnaire included questions on fertility preferences. Therefore limit universe.
+  # We use desire for children variable and exclude missings from universe
+  
+  if(SurveyID=="ke70") {
+    for(i in c("unmet","unmettot","specific_unmet")){
+      ir.data[,i][which(is.na(ir.data$v605))]<-NA
+    }
+  }
   
   return (ir.data)
 }

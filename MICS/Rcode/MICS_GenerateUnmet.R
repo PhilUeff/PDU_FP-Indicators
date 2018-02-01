@@ -89,7 +89,7 @@ CalcUnmet<- function(df){
     ###          3:Not at all
     ###          8:Missing
     df$wantchild<-NA
-    ####For current pregnancy
+    ####For Current Pregnancy
     df$wantchild<-ifelse(df$PREGNANT==1,df$PGDESIRE_NOW,df$wantchild)
     df$wantchild<-ifelse((df$PREGNANT==1&df$PGDESIRE_NOW==0&df$PGDESIRE_LATER==3)
                          ,3,df$wantchild)
@@ -98,7 +98,7 @@ CalcUnmet<- function(df){
     df$wantchild<-ifelse((df$PREGNANT==1&df$PGDESIRE_NOW==0&df$PGDESIRE_LATER==8)
                          ,8,df$wantchild)
     
-    
+    ####For Future Desire
     df$wantchild<-ifelse(df$PREGNANT!=1,df$FPLCHDESIRE_NOW,df$wantchild)
     df$wantchild<-ifelse((df$PREGNANT!=1&df$FPLCHDESIRE_NOW==0&df$FPLCHDESIRE_LATER==3)
                          ,3,df$wantchild)
@@ -145,7 +145,7 @@ CalcUnmet<- function(df){
     
     df$nonPPA <- NA
     df$nonPPA[which(is.na(df$Unmet)&!df$PREGNANT==1&!df$PPA24==1)]<-1
-    
+
     if("MAR1STCMC" %in% names(df)){
       ##3.1 - married 5+ years ago, no children in past 5 years, never used contraception, excluding pregnant and PPA <24 months
       df$TimeMarried <- as.numeric(df$INTDATECMC) - as.numeric(df$MAR1STCMC)
@@ -215,6 +215,14 @@ CalcUnmet<- function(df){
                            levels=c(1,2,3,4,7,9,97,98,99), 
                            labels=c("UnmetNeed_for_Spacing", "UnmetNeed_for_Limiting", "Using_for_Spacing",
                                     "Using_to_Limit","No_UnmetNeed","Infecund/Menopausal","Not_Sexually_Active", "Unmarried_Sample/NoData","UnmetNeed_Missing"))
+    #Label to specifc group of unmet need
+    df$Specific_unmet<- df$Unmet
+    df$Specific_unmet[which(!df$Specific_unmet%in%c(1,2) & (df$UnmetSim!=9 | is.na(df$UnmetSim)))] <- 0
+    
+    df$Specific_unmet <- factor(df$Specific_unmet,
+                                levels = c(0,1,2),
+                                labels = c("No_Unmet_Need", "UnmetNeed_for_Spacing","UnmetNeed_for_Limiting"))
+    
   }else{
     df$UnmetSim <- 9
   }
@@ -222,6 +230,7 @@ CalcUnmet<- function(df){
   df$UnmetSim[which(df$Unmet==1 | df$Unmet==2)] <- 1
   df$UnmetSim[which(!df$Unmet %in% c(1,2) & (df$UnmetSim!=9 | is.na(df$UnmetSim)))] <- 0
   
+  #Remove unmet need estimates when sexual activity is not present in dataset
   if(!"TIMESINCESEX_Unit"%in%names(df)){
     df$UnmetSim[which(df$MSTAT_LAB=="Unmarried" | df$MSTATNF_LAB=="Formerly-Married" | df$MSTATNF_LAB == "Never-Married")] <- 9
   }
@@ -230,8 +239,6 @@ CalcUnmet<- function(df){
   df$UnmetSim <- factor(df$UnmetSim,
                         levels=c(0,1,9),
                         labels=c("No_Unmet_Need","Unmet_Need","MissingData"))
-  
-  
   
   return(df)
 }

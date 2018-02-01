@@ -58,7 +58,7 @@ FileSetting <- function(){
   fileMETH <- "DHS_CPMETHOD_by_MARSTAT_WIDE"
   
   file.list <- c(fileout, filelong,fileMETHlong,fileMETH)
-
+  
   ## Check existence of output file
   for (i in 1:length(file.list)){
     if(file.exists(paste0(file.list[i],".csv"))){
@@ -153,26 +153,27 @@ CP_OUTPUT <- function(choice){
   cp <- full_join(cp,samplesize)
   final <- full_join(cp, umn, by= c("mstatus", "agegroup")) %>%
     mutate(cpModern = Using_modern_method / (Not_using_any_method + Using_modern_method + Using_traditional_method) * 100,
-           cpTrad = Using_traditional_method / (Not_using_any_method + Using_modern_method + Using_traditional_method) *100,
+           cpTraditional = Using_traditional_method / (Not_using_any_method + Using_modern_method + Using_traditional_method) *100,
            cpAny = (Using_modern_method + Using_traditional_method) / (Not_using_any_method + Using_modern_method + Using_traditional_method) *100,
-           umn = Unmet_need / (Unmet_need + No_unmet_need) * 100,
-           demandSatisfied_modern = ifelse(!is.na(umn),(Using_modern_method) / (Using_modern_method + Using_traditional_method + Unmet_need) * 100,NA),
-           CountryName = SurveyInfo$CountryName.UN,
-           LocID = SurveyInfo$LocID,
-           CatalogID = SurveyInfo$CatalogID,
+           Unmet = Unmet_need / (Unmet_need + No_unmet_need) * 100,
+           `Demand satisfied by modern` = ifelse(!is.na(Unmet),(Using_modern_method) / (Using_modern_method + Using_traditional_method + Unmet_need) * 100,NA),
+           country = SurveyInfo$CountryName.UN,
+           iso = SurveyInfo$LocID,
+           catalogID = SurveyInfo$CatalogID,
            Universe = SurveyInfo$Sample.Type.Female,
            DateToday = Sys.Date(),
            Phase = SurveyInfo$Phase,
            SampleType = SurveyInfo$Type,
-           SurveyName = SurveyInfo$SurveyName,
-           StartYear = SurveyInfo$StartYear,
-           EndYear = SurveyInfo$EndYear,
+           surveyShort = SurveyInfo$ShortName,
+           survey = SurveyInfo$SurveyName,
+           Startyear = SurveyInfo$StartYear,
+           Endyear = SurveyInfo$EndYear,
            StartDate = SurveyInfo$StartDate,
            EndDate = SurveyInfo$EndDate,
            RefDate = SurveyInfo$RefDate
     ) 
   
-  tTYPE <- select(final, CountryName : Universe, mstatus,agegroup,Not_using_any_method:agegroup, No_unmet_need:demandSatisfied_modern, DateToday : RefDate, n_unweighted,nAny_unweighted)
+  tTYPE <- select(final, country : Universe, mstatus,agegroup,Not_using_any_method:agegroup, No_unmet_need:`Demand satisfied by modern`, DateToday : RefDate, n_unweighted,nAny_unweighted)
   return(tTYPE)
 }
 CP_METH <- function(choice){
@@ -191,29 +192,45 @@ CP_METH <- function(choice){
       cpMETH_All <- as.data.frame(addmargins(xtabs(weights ~ mstatusBinary + methodspecific_lab,ir.data),1,FUN=AllWomen)) %>%
         mutate(agegroup ="[Total]")
       cpMETH_Age <- as.data.frame(addmargins(xtabs(weights ~ mstatusBinary + methodspecific_lab+agegroup,ir.data),1,FUN=AllWomen))
+      
+      umnAll <- as.data.frame(addmargins(xtabs(weights~mstatusBinary + specific_unmet, ir.data),1,FUN=AllWomen))%>%
+        mutate(agegroup = "[Total]")
+      
+      umnAge <- as.data.frame(addmargins(xtabs(weights~mstatusBinary + specific_unmet + agegroup,ir.data),1,FUN=AllWomen))
+      
     }else if (choice == "UMW"){
       cpMETH_All <- as.data.frame(xtabs(weights ~ mstatus + methodspecific_lab,ir.data)) %>%
         mutate(agegroup = "[Total]")
       cpMETH_Age <- as.data.frame(xtabs(weights ~ mstatus + methodspecific_lab + agegroup, ir.data))
+      
+      umnAll <- as.data.frame(xtabs(weights~mstatus + specific_unmet, ir.data))%>%
+        mutate(agegroup = "[Total]")
+      
+      umnAge <- as.data.frame(xtabs(weights~mstatus + specific_unmet + agegroup,ir.data))
     }
+    
     if(nrow(cpMETH_All) >0 & nrow(cpMETH_Age)>0){
+      umn <- full_join(umnAll,umnAge)
+      names(umn)[which(names(umn)=="specific_unmet")] <- "methodspecific_lab"
       cpMETH <- full_join(cpMETH_All,cpMETH_Age)
+      cpMETH <- full_join(cpMETH,umn)
       if("mstatusBinary" %in% colnames(cpMETH)){
         colnames(cpMETH)[colnames(cpMETH)=="mstatusBinary"] <- "mstatus"
       }
       cpMETH <- cpMETH %>%
         arrange(mstatus,agegroup)%>%
-        mutate(CountryName = SurveyInfo$CountryName.UN,
-               LocID = SurveyInfo$LocID,
-               CatalogID = SurveyInfo$CatalogID,
+        mutate(country = SurveyInfo$CountryName.UN,
+               iso = SurveyInfo$LocID,
+               catalogID = SurveyInfo$CatalogID,
                Universe = SurveyInfo$Sample.Type.Female,
-               SurveyName = SurveyInfo$SurveyName,
-               StartYear = SurveyInfo$StartYear,
-               EndYear = SurveyInfo$EndYear,
+               surveyShort = SurveyInfo$ShortName,
+               survey = SurveyInfo$SurveyName,
+               Startyear = SurveyInfo$StartYear,
+               Endyear = SurveyInfo$EndYear,
                StartDate = SurveyInfo$StartDate,
                EndDate = SurveyInfo$EndDate,
                RefDate = SurveyInfo$RefDate
-               )
+        )
       return (cpMETH)
     }else{
       return (NULL)
@@ -234,25 +251,25 @@ ResetRecords <- function(t){
        t$Using_traditional_method[which(t$mstatus==m & t$agegroup == "[Total]")]==0){
       t$cpAny[which(t$mstatus==m)]<-NA
       t$cpModern[which(t$mstatus==m)]<-NA
-      t$cpTrad[which(t$mstatus==m)]<-NA
-      t$umn[which(t$mstatus==m)]<-NA
-      t$demandSatisfied_modern[which(t$mstatus==m)]<-NA
+      t$cpTraditional[which(t$mstatus==m)]<-NA
+      t$Unmet[which(t$mstatus==m)]<-NA
+      t$`Demand satisfied by modern`[which(t$mstatus==m)]<-NA
       
       for(g in group.list){
         t$cpAny[which(t$mstatus==g)]<-NA
         t$cpModern[which(t$mstatus==g)]<-NA
-        t$cpTrad[which(t$mstatus==g)]<-NA
-        t$umn[which(t$mstatus==g)]<-NA
-        t$demandSatisfied_modern[which(t$mstatus==g)]<-NA
+        t$cpTraditional[which(t$mstatus==g)]<-NA
+        t$Unmet[which(t$mstatus==g)]<-NA
+        t$`Demand satisfied by modern`[which(t$mstatus==g)]<-NA
       }
     }
     if(t$Unmet_need[which(t$mstatus==m &t$agegroup=="[Total]")] ==0){
-      t$umn[which(t$mstatus==m)]<-NA
-      t$demandSatisfied_modern[which(t$mstatus==m)]<-NA
+      t$Unmet[which(t$mstatus==m)]<-NA
+      t$`Demand satisfied by modern`[which(t$mstatus==m)]<-NA
       
       for(g in group.list){
-        t$umn[which(t$mstatus==g)]<-NA
-        t$demandSatisfied_modern[which(t$mstatus==g)]<-NA
+        t$Unmet[which(t$mstatus==g)]<-NA
+        t$`Demand satisfied by modern`[which(t$mstatus==g)]<-NA
       }
     }
   }
@@ -271,7 +288,7 @@ ResetRecords <- function(t){
   }
   
   #Adjust for DHS-I
-  t$umn[which(t$Phase == "DHS-I")]<-NA
+  t$Unmet[which(t$Phase == "DHS-I")]<-NA
   t$No_unmet_need[which(t$Phase == "DHS-I")]<-NA
   t$Unmet_need[which(t$Phase == "DHS-I")]<-NA
   
@@ -298,21 +315,9 @@ Output <- function(tTYPE,tMETH){
 Transform <- function(){
   df <- read.csv(file.list[1])
   
-  t <- df %>% group_by(CountryName, LocID, CatalogID, Universe, agegroup, Phase, SampleType, SurveyName, StartYear, EndYear, StartDate, EndDate, RefDate, n_unweighted, nAny_unweighted, totalDemand,`WCUMA_nAny_totalAge_.10`,	`WCUMA_n.50`,	`WCUMA_totalDemand.5`) %>%
-    summarise_at(vars(Not_using_any_method, Using_modern_method, Using_traditional_method, Unknown, No_unmet_need, Unmet_need), sum) %>%
-    mutate(mstatus = "Total",
-           DateToday = as.factor(Sys.Date()),
-           cpModern = Using_modern_method / (Not_using_any_method + Using_modern_method + Using_traditional_method) * 100,
-           cpTrad = Using_traditional_method / (Not_using_any_method + Using_modern_method + Using_traditional_method) *100,
-           cpAny = (Using_modern_method + Using_traditional_method) / (Not_using_any_method + Using_modern_method + Using_traditional_method) *100,
-           umn = Unmet_need / (Unmet_need + No_unmet_need) * 100,
-           demandSatisfied_modern = ifelse(!is.na(umn),(Using_modern_method) / (Using_modern_method + Using_traditional_method + Unmet_need) * 100,NA)
-    )
-  
-  tt <- rbind.data.frame(df, t) %>%
-    select(-c(Not_using_any_method, Using_modern_method, Using_traditional_method, Unmet_need, No_unmet_need)) %>%
-    filter(mstatus != "Marital Status, Missing") %>%
-    gather(Indicator, Data.Value, cpModern:demandSatisfied_modern)
+  tt <- df %>%
+    gather(Indicator, Data.Value, cpModern:`Demand.satisfied.by.modern`)%>%
+    filter(mstatus!="Marital Status, Missing")
   
   write.table(tt, file.list[2] ,quote=TRUE,sep=",",row.names=F)
   
@@ -322,11 +327,11 @@ Transform <- function(){
                "Diaphragm/Foam/Jelly","Diaphragm","Diaphragm/Foam","Diaphragm/Jelly","Foam or Jelly","Foaming tablets","Vaginal methods","Lactational amenorrhea (LAM)","Prolonged breastfeeding","Emergency contraception",
                "Other modern method","Abstinence or periodic abstinence","Periodic abstinence","Cycle Beads/Standard days method","Abstinence","Mucus method","Temperature","Other Rhythm/Calendar/Periodic Abstinence",
                "Natural family planning, unspecified","Withdrawal","Other traditional/folkloric","Herbs/Plants","Gris-Gris/Amulet","Astrology","Strings","Massage","Douche","OTHER METHOD, UNSPECIFIED","Other specific method 1"
-               ,"Other specific method 2","Other specific method 3","Other specific method 4","modernUser", "traditionalUser", "totalUser", "NotUsing")
+               ,"Other specific method 2","Other specific method 3","Other specific method 4","modernUser", "traditionalUser", "totalUser", "NotUsing","No_Unmet_Need","UnmetNeed_for_Spacing","UnmetNeed_for_Limiting")
   
   tWide <- tLong %>%
     filter(mstatus %in% c("Married/In-union", "Unmarried/Not-in-union", "AllWomen", "Formerly in-union", "Neverin-union", "Unmarried")) %>%  #filters out surveys from tLong which did not have method specific variable or other problems
-    dcast(CatalogID + LocID + SurveyName + CountryName + StartYear +EndYear + mstatus + agegroup ~ methodspecific_lab, value.var = "Freq")
+    dcast(catalogID + iso + survey + surveyShort + country + Startyear +Endyear + mstatus + agegroup ~ methodspecific_lab, value.var = "Freq")
   
   for (j in colList[!colList %in% names(tWide)]) {
     tWide[j] <- NA
@@ -338,18 +343,22 @@ Transform <- function(){
     mutate(modernUser = rowSums(cbind(Pill, `Daily pill`, `Monthly pill`, IUD, `Norplant/Implants`, Condom, `Female Condom`, `Female Sterilization`,
                                       `Male Sterilization`,Patch, Ring, Injections, `Injection (3 monthly)`,`Injection (monthly)`,`Diaphragm/Foam/Jelly`,
                                       Diaphragm, `Diaphragm/Foam`, `Diaphragm/Jelly`, `Foam or Jelly`, `Foaming tablets`,`Vaginal methods`, `Lactational amenorrhea (LAM)`,
-                                      `Prolonged breastfeeding`,`Emergency contraception`,`Other modern method`),na.rm=T),
+                                      `Emergency contraception`,`Other modern method`),na.rm=T),
            traditionalUser = rowSums(cbind(`Abstinence or periodic abstinence`,`Periodic abstinence`,`Cycle Beads/Standard days method`, Abstinence,
                                            `Mucus method`, Temperature,`Other Rhythm/Calendar/Periodic Abstinence`, `Natural family planning, unspecified`,
-                                           Withdrawal,`Other traditional/folkloric`,`Herbs/Plants`,`Gris-Gris/Amulet`,Astrology,Strings,Massage,Douche),na.rm=T),
+                                           Withdrawal,`Other traditional/folkloric`,`Herbs/Plants`,`Gris-Gris/Amulet`,Astrology,Strings,Massage,Douche,`Prolonged breastfeeding`,`OTHER METHOD, UNSPECIFIED`),na.rm=T),
            totalUser = modernUser+traditionalUser,
            NotUsing = `Not using`,
            totalN = rowSums(cbind(modernUser, traditionalUser, NotUsing), na.rm = TRUE)
-  )
+    )
   
   for (j in colList) {
     colTitle <- paste("CP", j, sep = "_")
-    tWide[colTitle] <- tWide[j] / rowSums(tWide[, c("modernUser", "traditionalUser", "NotUsing")], na.rm = TRUE) * 100
+    if(j %in% c("No_Unmet_Need","UnmetNeed_for_Spacing","UnmetNeed_for_Limiting")){
+      tWide[colTitle] <- tWide[j] / rowSums(tWide[,c("No_Unmet_Need","UnmetNeed_for_Spacing","UnmetNeed_for_Limiting")],na.rm=T)*100
+    }else{
+      tWide[colTitle] <- tWide[j] / rowSums(tWide[, c("modernUser", "traditionalUser", "NotUsing")], na.rm = TRUE) * 100
+    }
   }
   
   write.table(tWide, file = file.list[4], quote = TRUE, sep = ",", row.names = FALSE, col.names = TRUE)
@@ -382,21 +391,21 @@ for(i in 1:length(working.list)){
   
   #Restrict Sexually Active Sample
   # ir.data$sexact <- NA
-
+  
   #1 month
-   # if(SurveyID=="bf21"){
-   #   ir.data$sexact[which(ir.data$v527>=0 & ir.data$v527<300)]<-1
-   #   ir.data$sexact[which(ir.data$v527 > 300)] <- 2
-   # }else{
-   #   ir.data$sexact[which(ir.data$v528>=0 & ir.data$v528<=30)] <- 1
-   #   if(SurveyID %in% specialSurveys){
-   #     ir.data$sexact[which(is.na(ir.data$sexact) & ir.data$v528==95)] <- 1
-   #   }else{
-   #     ir.data$sexact[which(ir.data$v528 > 30)] <- 2
-   #     ir.data$sexact[which(ir.data$v536 == 0)] <- 3
-   #   }
-   # }
-
+  # if(SurveyID=="bf21"){
+  #   ir.data$sexact[which(ir.data$v527>=0 & ir.data$v527<300)]<-1
+  #   ir.data$sexact[which(ir.data$v527 > 300)] <- 2
+  # }else{
+  #   ir.data$sexact[which(ir.data$v528>=0 & ir.data$v528<=30)] <- 1
+  #   if(SurveyID %in% specialSurveys){
+  #     ir.data$sexact[which(is.na(ir.data$sexact) & ir.data$v528==95)] <- 1
+  #   }else{
+  #     ir.data$sexact[which(ir.data$v528 > 30)] <- 2
+  #     ir.data$sexact[which(ir.data$v536 == 0)] <- 3
+  #   }
+  # }
+  
   # #3 months
   # ir.data$sexact[which((ir.data$v527>=0 & ir.data$v527<=190) |
   #                        (ir.data$v527>=200 & ir.data$v527<=212)|
@@ -428,8 +437,9 @@ for(i in 1:length(working.list)){
     ir.data$unmettot <- NA
     ir.data$unmet <- NA
     ir.data$sexact <-NA
+    ir.data$specific_unmet<- NA
   }
-  
+
   #Categorize Marital Status, Age 
   ir.data <- MapVal(ir.data)
   
@@ -437,7 +447,7 @@ for(i in 1:length(working.list)){
   tTYPE <- CP_OUTPUT("Both")
   tMETH <- CP_METH("Both")
   
-  tTYPE$totalDemand <- tTYPE$cpAny + tTYPE$umn
+  tTYPE$totalDemand <- rowSums(tTYPE[,c("cpAny","Unmet")],na.rm=T)
   
   #WMCUMA = Indicator of whether sample size of unmarried for 15-49 < 10
   ## <10 = Exclude
@@ -470,8 +480,3 @@ for(i in 1:length(working.list)){
   Output(tTYPE,tMETH)
 }
 Transform()
-
-
-
-
-
